@@ -142,7 +142,7 @@ void d2V_membrane_corotational_dq2(Eigen::Matrix99d &H, Eigen::Ref<const Eigen::
     Eigen::Vector3d nn = n.normalized();
     dF = B + N_ * (Eigen::Matrix3d::Identity()-nn*nn.transpose()) * (dx1*tmp1-dx2*tmp2)/n.norm();
 
-    H = dF.transpose()*d2psidF*dF;
+    H = area*dF.transpose()*d2psidF*dF;
 
     //fix errant eigenvalues
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix99d> es(H);
