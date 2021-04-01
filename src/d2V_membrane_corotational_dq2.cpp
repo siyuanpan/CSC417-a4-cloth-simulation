@@ -75,7 +75,74 @@ void d2V_membrane_corotational_dq2(Eigen::Matrix99d &H, Eigen::Ref<const Eigen::
     }
 
     //TODO: compute H, the hessian of the corotational energy
-    
+    Eigen::Tensor3333d dU, dV;
+    Eigen::Tensor333d dS;
+    dsvd(dU, dS, dV, F);
+    double parm1 = 2*mu+lambda;
+    double parm2 = lambda;
+    Eigen::Matrix3d dpsids;
+    dpsids << 2*mu*(S[0]-1)+lambda*(S[0]+S[1]+S[2]-3), 0, 0,
+        0, 2*mu*(S[1]-1)+lambda*(S[0]+S[1]+S[2]-3), 0,
+        0, 0, 2*mu*(S[2]-1)+lambda*(S[0]+S[1]+S[2]-3);
+    Eigen::Matrix3d d2psi;
+    d2psi << parm1, parm2, parm2,
+        parm2, parm1, parm2,
+        parm2, parm2, parm1;
+    Eigen::Matrix<double, 9, 9> d2psidF;
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            Eigen::Matrix3d dUdF;
+            Eigen::Matrix3d dVdF;
+            Eigen::Vector3d dSdF;
+            dSdF << dS[0][i][j], dS[1][i][j], dS[2][i][j];
+            for (int x = 0; x < 3; ++x) {
+                for (int y = 0; y < 3; ++y) {
+                    dUdF(x, y) = dU[x][y](i, j);
+                    dVdF(x, y) = dV[x][y](i, j);
+                }
+            }
+            Eigen::Vector3d dsij = d2psi*dSdF;
+            Eigen::Matrix<double, 3, 3, Eigen::RowMajor> d2psidFij = dUdF*dpsids*W.transpose() + U*dsij.asDiagonal()*W.transpose() + U*dpsids*dVdF.transpose();
+            Eigen::Vector9d tmp = Eigen::Map<Eigen::Vector9d>(d2psidFij.data(), 9);
+            d2psidF.col(i*3+j) = tmp;
+        }
+    }
+
+    Eigen::Matrix<double, 9, 9> B;
+    B.setZero();
+    for (int i = 0; i < 3; ++i) {
+        B.block(0, 0+3*i, 3, 1) = dX.row(i).transpose();
+        B.block(3, 1+3*i, 3, 1) = dX.row(i).transpose();
+        B.block(6, 2+3*i, 3, 1) = dX.row(i).transpose();
+    }
+    Eigen::Matrix<double, 9, 3> N_;
+    N_.setZero();
+    N_.block(0, 0, 3, 1) = N;
+    N_.block(3, 1, 3, 1) = N;
+    N_.block(6, 2, 3, 1) = N;
+
+    auto crossMat = [](Eigen::Matrix3d& mat, Eigen::Vector3d& v1, Eigen::Vector3d& v2) {
+        Eigen::Vector3d v = v2-v1;
+        mat << 0, -v[2], v[1],
+            v[2], 0, -v[0],
+            -v[1], v[0], 0;
+    };
+    Eigen::Matrix3d dx1, dx2;
+    crossMat(dx1, x0, x1);
+    crossMat(dx2, x0, x2);
+    Eigen::Matrix<double, 3, 9> tmp1, tmp2;
+    tmp1.setZero();
+    tmp1.block(0, 0, 3, 3) = -Eigen::Matrix3d::Identity();
+    tmp1.block(0, 6, 3, 3) = Eigen::Matrix3d::Identity();
+    tmp2.setZero();
+    tmp2.block(0, 0, 3, 3) = -Eigen::Matrix3d::Identity();
+    tmp2.block(0, 3, 3, 3) = Eigen::Matrix3d::Identity();
+
+    Eigen::Matrix<double, 9, 9> dF;
+    Eigen::Vector3d nn = n.normalized();
+    dF = B + N_ * (Eigen::Matrix3d::Identity()-nn*nn.transpose()) * (dx1*tmp1-dx2*tmp2)/n.norm();
+
+    H = dF.transpose()*d2psidF*dF;
 
     //fix errant eigenvalues
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix99d> es(H);

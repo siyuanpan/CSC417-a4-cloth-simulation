@@ -105,7 +105,7 @@ void dV_membrane_corotational_dq(Eigen::Vector9d &dV, Eigen::Ref<const Eigen::Ve
     dF = B + N_ * (Eigen::Matrix3d::Identity()-nn*nn.transpose()) * (dx1*tmp1-dx2*tmp2)/n.norm();
 
     Eigen::Matrix3d psiT = dpsi_dF.transpose();
-    Eigen::Map<Eigen::Vector9d> flat(psiT.data(), 9, 1);
+    Eigen::Vector9d flat = Eigen::Map<Eigen::Vector9d>(psiT.data(), 9, 1);
 
     dV = area*dF.transpose()*flat;
 
